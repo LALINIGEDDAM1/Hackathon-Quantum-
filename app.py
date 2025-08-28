@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd
 import networkx as nx
-import plotly.graph_objects as go
 from cml_model import QuantumDeliveryMLModel
 from quantum import QuantumInspiredPathFinder, create_demo_city
 
@@ -50,6 +49,7 @@ with col2:
 
 if start == end:
     st.error("Pickup and delivery locations must be different!")
+    st.stop()
 
 st.markdown('<div class="section-title">🚚 Delivery Type</div>', unsafe_allow_html=True)
 col3, col4 = st.columns(2)
@@ -65,6 +65,55 @@ with constraint_cols[0]:
     weather = st.radio("Weather", ["sunny", "rainy", "foggy", "cloudy"], horizontal=True)
 with constraint_cols[1]:
     time_of_day = st.radio("Time Period", ["morning", "afternoon", "evening", "night"], horizontal=True)
+
+# --------- Leaflet Map Visualization ---------
+import folium
+from streamlit_folium import st_folium
+
+# Assign some demo lat/lon for each node (replace with real values if available)
+node_coords = {
+    "A": (17.387140, 78.491684),
+    "B": (17.395044, 78.486671),
+    "C": (17.400000, 78.480000),
+    "D": (17.410000, 78.500000),
+    "E": (17.420000, 78.470000),
+    "F": (17.430000, 78.505000),
+    "G": (17.440000, 78.515000),
+    "H": (17.450000, 78.525000)
+}
+
+def plot_city_leaflet(G, quantum_path=None, classical_path=None):
+    m = folium.Map(location=[17.40, 78.49], zoom_start=12, control_scale=True)
+
+    # Draw all edges
+    for u, v in G.edges():
+        folium.PolyLine(
+            [node_coords[u], node_coords[v]],
+            color="gray", weight=2, opacity=0.5
+        ).add_to(m)
+
+    # Draw classical path (orange)
+    if classical_path and len(classical_path) > 1:
+        folium.PolyLine(
+            [node_coords[n] for n in classical_path],
+            color="orange", weight=8, opacity=0.8, tooltip="Classical Path"
+        ).add_to(m)
+
+    # Draw quantum path (purple)
+    if quantum_path and len(quantum_path) > 1:
+        folium.PolyLine(
+            [node_coords[n] for n in quantum_path],
+            color="purple", weight=8, opacity=0.8, tooltip="Quantum Path"
+        ).add_to(m)
+
+    # Add node markers
+    for n, (lat, lon) in node_coords.items():
+        folium.CircleMarker(
+            [lat, lon], radius=10, fill=True,
+            color="blue", fill_opacity=0.7, popup=f"{n}: {node_labels[n]}"
+        ).add_to(m)
+
+    return m
 
 # --------- Run Optimization ---------
 if st.button("🧠 Find Optimal Path"):
@@ -85,92 +134,13 @@ if st.button("🧠 Find Optimal Path"):
 
     # --------- Show Path Results ---------
     st.markdown('<div class="section-title">🗺 City Navigation Map</div>', unsafe_allow_html=True)
-
-    def plot_city_graph(G, quantum_path=None, classical_path=None):
-        # Use spring_layout for nice layout
-        pos = nx.spring_layout(G, seed=42)
-        edge_x = []
-        edge_y = []
-        for e in G.edges():
-            x0, y0 = pos[e[0]]
-            x1, y1 = pos[e[1]]
-            edge_x += [x0, x1, None]
-            edge_y += [y0, y1, None]
-
-        edge_trace = go.Scatter(
-            x=edge_x, y=edge_y,
-            line=dict(width=2, color='#888'),
-            hoverinfo='none',
-            mode='lines'
-        )
-
-        # Node positions
-        node_x = []
-        node_y = []
-        node_text = []
-        for node in G.nodes():
-            x, y = pos[node]
-            node_x.append(x)
-            node_y.append(y)
-            node_text.append(f"{node} ({node_labels[node]})")
-
-        node_trace = go.Scatter(
-            x=node_x, y=node_y,
-            mode='markers+text',
-            text=[str(n) for n in G.nodes()],
-            textposition="top center",
-            marker=dict(
-                showscale=False,
-                color='#667eea',
-                size=28,
-                line_width=2
-            ),
-            hovertext=node_text,
-            hoverinfo='text'
-        )
-
-        fig = go.Figure([edge_trace, node_trace])
-
-        # Add quantum path (purple) and classical path (orange)
-        if quantum_path and len(quantum_path) > 1:
-            qp_x = [pos[n][0] for n in quantum_path]
-            qp_y = [pos[n][1] for n in quantum_path]
-            fig.add_trace(go.Scatter(
-                x=qp_x, y=qp_y,
-                mode='lines+markers',
-                line=dict(width=6, color='#764ba2'),
-                marker=dict(size=32, color='#764ba2', symbol="diamond"),
-                name='Quantum Path'
-            ))
-        if classical_path and len(classical_path) > 1:
-            cp_x = [pos[n][0] for n in classical_path]
-            cp_y = [pos[n][1] for n in classical_path]
-            fig.add_trace(go.Scatter(
-                x=cp_x, y=cp_y,
-                mode='lines+markers',
-                line=dict(width=6, color='#f39c12'),
-                marker=dict(size=32, color='#f39c12', symbol="circle"),
-                name='Classical Path'
-            ))
-
-        fig.update_layout(
-            showlegend=True,
-            margin=dict(l=20, r=20, t=40, b=20),
-            hovermode='closest',
-            xaxis=dict(showgrid=False, zeroline=False, visible=False),
-            yaxis=dict(showgrid=False, zeroline=False, visible=False),
-            height=600,
-            plot_bgcolor='rgba(0,0,0,0)'
-        )
-        return fig
-
-    st.plotly_chart(
-        plot_city_graph(
+    st_folium(
+        plot_city_leaflet(
             G,
             quantum_path=results['quantum']['path'],
             classical_path=results['classical']['path']
         ),
-        use_container_width=True
+        width=800, height=600
     )
 
     # --------- Path Details ---------
@@ -199,8 +169,7 @@ if st.button("🧠 Find Optimal Path"):
         savings_cols[1].metric("Fuel Saved", f"{savings['fuel_saved_liters']:.2f} L", f"{savings['fuel_saved_percentage']:.1f}%")
         savings_cols[2].metric("CO2 Reduced", f"{savings['co2_saved_kg']:.2f} kg", f"{savings['co2_saved_percentage']:.1f}%")
 
-else:
-    st.info("Configure your delivery scenario above and click '🧠 Find Optimal Path' to view results and map.")
+st.info("Configure your delivery scenario above and click '🧠 Find Optimal Path' to view results and map.")
 
 st.markdown("---")
-st.caption("Built with ❤ using Streamlit, Plotly, scikit-learn, and NetworkX.")
+st.caption("Built with ❤ using Streamlit, Folium, scikit-learn, and NetworkX.")
