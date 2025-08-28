@@ -7,3 +7,7 @@ seaborn
 networkx
 plotly
 streamlit
+networkx
+folium
+streamlit-folium
+leaflet
