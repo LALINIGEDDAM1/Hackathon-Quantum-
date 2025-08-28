@@ -1,6 +1,9 @@
 import streamlit as st
 import pandas as pd
 import networkx as nx
+import folium
+from streamlit_folium import st_folium
+
 from cml_model import QuantumDeliveryMLModel
 from quantum import QuantumInspiredPathFinder, create_demo_city
 
@@ -67,9 +70,6 @@ with constraint_cols[1]:
     time_of_day = st.radio("Time Period", ["morning", "afternoon", "evening", "night"], horizontal=True)
 
 # --------- Leaflet Map Visualization ---------
-import folium
-from streamlit_folium import st_folium
-
 # Assign some demo lat/lon for each node (replace with real values if available)
 node_coords = {
     "A": (17.387140, 78.491684),
@@ -83,34 +83,43 @@ node_coords = {
 }
 
 def plot_city_leaflet(G, quantum_path=None, classical_path=None):
-    m = folium.Map(location=[17.40, 78.49], zoom_start=12, control_scale=True)
+    m = folium.Map(location=[17.40, 78.49], zoom_start=12, control_scale=True, tiles="cartodbpositron")
 
     # Draw all edges
     for u, v in G.edges():
-        folium.PolyLine(
-            [node_coords[u], node_coords[v]],
-            color="gray", weight=2, opacity=0.5
-        ).add_to(m)
+        try:
+            folium.PolyLine(
+                [node_coords[u], node_coords[v]],
+                color="gray", weight=2, opacity=0.5
+            ).add_to(m)
+        except KeyError:
+            continue  # Skip if a node is missing coordinates
 
     # Draw classical path (orange)
     if classical_path and len(classical_path) > 1:
-        folium.PolyLine(
-            [node_coords[n] for n in classical_path],
-            color="orange", weight=8, opacity=0.8, tooltip="Classical Path"
-        ).add_to(m)
+        try:
+            folium.PolyLine(
+                [node_coords[n] for n in classical_path if n in node_coords],
+                color="orange", weight=8, opacity=0.8, tooltip="Classical Path"
+            ).add_to(m)
+        except Exception:
+            pass
 
     # Draw quantum path (purple)
     if quantum_path and len(quantum_path) > 1:
-        folium.PolyLine(
-            [node_coords[n] for n in quantum_path],
-            color="purple", weight=8, opacity=0.8, tooltip="Quantum Path"
-        ).add_to(m)
+        try:
+            folium.PolyLine(
+                [node_coords[n] for n in quantum_path if n in node_coords],
+                color="purple", weight=8, opacity=0.8, tooltip="Quantum Path"
+            ).add_to(m)
+        except Exception:
+            pass
 
     # Add node markers
     for n, (lat, lon) in node_coords.items():
         folium.CircleMarker(
             [lat, lon], radius=10, fill=True,
-            color="blue", fill_opacity=0.7, popup=f"{n}: {node_labels[n]}"
+            color="blue", fill_opacity=0.7, popup=f"{n}: {node_labels.get(n, '')}"
         ).add_to(m)
 
     return m
@@ -134,13 +143,13 @@ if st.button("🧠 Find Optimal Path"):
 
     # --------- Show Path Results ---------
     st.markdown('<div class="section-title">🗺 City Navigation Map</div>', unsafe_allow_html=True)
-    st_folium(
+    folium_result = st_folium(
         plot_city_leaflet(
             G,
             quantum_path=results['quantum']['path'],
             classical_path=results['classical']['path']
         ),
-        width=800, height=600
+        width=1000, height=700
     )
 
     # --------- Path Details ---------
@@ -148,18 +157,18 @@ if st.button("🧠 Find Optimal Path"):
     cols = st.columns(2)
     with cols[0]:
         st.markdown("### 🌟 Quantum Algorithm")
-        st.write(f"*Path:* {' → '.join(results['quantum']['path']) if results['quantum']['path'] else '-'}")
-        st.write(f"*Distance:* {results['quantum']['distance']:.2f} km")
-        st.write(f"*Time:* {results['quantum']['estimated_delivery_time']:.1f} min")
-        st.write(f"*Fuel:* {results['quantum']['estimated_fuel_consumption']:.2f} L")
-        st.write(f"*CO2:* {results['quantum']['estimated_co2_emission']:.2f} kg")
+        st.write(f"Path: {' → '.join(results['quantum']['path']) if results['quantum']['path'] else '-'}")
+        st.write(f"Distance: {results['quantum']['distance']:.2f} km")
+        st.write(f"Time: {results['quantum']['estimated_delivery_time']:.1f} min")
+        st.write(f"Fuel: {results['quantum']['estimated_fuel_consumption']:.2f} L")
+        st.write(f"CO2: {results['quantum']['estimated_co2_emission']:.2f} kg")
     with cols[1]:
         st.markdown("### 🔍 Traditional GPS")
-        st.write(f"*Path:* {' → '.join(results['classical']['path']) if results['classical']['path'] else '-'}")
-        st.write(f"*Distance:* {results['classical']['distance']:.2f} km")
-        st.write(f"*Time:* {results['classical']['estimated_delivery_time']:.1f} min")
-        st.write(f"*Fuel:* {results['classical']['estimated_fuel_consumption']:.2f} L")
-        st.write(f"*CO2:* {results['classical']['estimated_co2_emission']:.2f} kg")
+        st.write(f"Path: {' → '.join(results['classical']['path']) if results['classical']['path'] else '-'}")
+        st.write(f"Distance: {results['classical']['distance']:.2f} km")
+        st.write(f"Time: {results['classical']['estimated_delivery_time']:.1f} min")
+        st.write(f"Fuel: {results['classical']['estimated_fuel_consumption']:.2f} L")
+        st.write(f"CO2: {results['classical']['estimated_co2_emission']:.2f} kg")
 
     if "improvements" in results:
         st.markdown('<div class="section-title">🎯 Quantum Optimization Benefits</div>', unsafe_allow_html=True)
