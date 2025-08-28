@@ -5,3 +5,5 @@ joblib
 matplotlib
 seaborn
 networkx
+plotly
+streamlit
