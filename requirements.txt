@@ -1,13 +1,24 @@
-numpy
-pandas
-scikit-learn
-joblib
+streamlit>=1.25
+folium>=0.14
+streamlit-folium>=0.8
+networkx>=2.8
+pandas>=1.5
+numpy>=1.21
+scikit-learn>=1.1
+joblib>=1.2
+
+# Used by ML model in cml_model.py
+# You can uncomment or add more as needed:
 matplotlib
 seaborn
-networkx
-plotly
-streamlit
-networkx
-folium
-streamlit-folium
-leaflet
+
+# For quantum.py, based on your repo's apparent code there is NO external quantum framework required (e.g. qiskit or pennylane), unless your own quantum.py uses them.
+# If you use qiskit or pennylane, add:
+qiskit
+pennylane
+
+# If you use Flask or other web libraries in your code (not in your provided main app), add as needed:
+flask
+
+# For suppressing warnings
+# (warnings is part of stdlib, nothing to add)
